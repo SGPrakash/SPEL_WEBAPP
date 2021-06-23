@@ -12,6 +12,43 @@ def get_image_download_link(img):
 	href = f'<a href="data:file/jpg;base64,{img_str}">Download result</a>'
 	return href
 
+@st.cache(allow_output_mutation=True)
+def load_model():
+    modelFile = "res10_300x300_ssd_iter_140000_fp16.caffemodel"
+    configFile = "deploy.prototxt"
+    net = cv2.dnn.readNetFromCaffe(configFile, modelFile)
+    return net
+
+def detectFaceOpenCVDnn(net, frame, framework="caffe", conf_threshold=0.5):
+    frameOpencvDnn = frame.copy()
+    frameHeight = frameOpencvDnn.shape[0]
+    frameWidth = frameOpencvDnn.shape[1]
+
+    blob = cv2.dnn.blobFromImage(
+        frameOpencvDnn, 1.0, (300, 300), [104, 117, 123], False, False,
+    )
+    net.setInput(blob)
+    detections = net.forward()
+    bboxes = []
+    for i in range(detections.shape[2]):
+        confidence = detections[0, 0, i, 2]
+        if confidence > conf_threshold:
+            x1 = int(detections[0, 0, i, 3] * frameWidth)
+            y1 = int(detections[0, 0, i, 4] * frameHeight)
+            x2 = int(detections[0, 0, i, 5] * frameWidth)
+            y2 = int(detections[0, 0, i, 6] * frameHeight)
+            bboxes.append([x1, y1, x2, y2])
+            cv2.rectangle(
+                frameOpencvDnn,
+                (x1, y1),
+                (x2, y2),
+                (0, 255, 0),
+                int(round(frameHeight / 150)),
+                8,
+            )
+    return frameOpencvDnn, bboxes
+
+
 #class with all the image processing functions
 class ImpMyList():
 
@@ -43,6 +80,20 @@ class ImpMyList():
                 place[1].image(out_image)
                 image_d = Image.fromarray(out_image)
                 st.markdown(get_image_download_link(image_d), unsafe_allow_html=True)
+
+    def face_detection():
+        image_file  = st.file_uploader("Choose a rgb file", type =['jpg','jpeg','jfif','png'])
+        if image_file is not None:
+            net = load_model()
+            place = st.beta_columns(2)
+            image = np.array(Image.open(image_file))
+            image = cv2.resize(image,(350,350))
+            place[0].image(image)
+            conf_threshold = st.slider("Threshold",min_value = 0.01, max_value = 1.0, step = .01, value=0.5)
+            out_image,_ = detectFaceOpenCVDnn(net, image, conf_threshold=conf_threshold)
+            place[1].image(out_image)
+            image_d = Image.fromarray(out_image)
+            st.markdown(get_image_download_link(image_d), unsafe_allow_html=True)
 
    
     def rotation():
@@ -80,7 +131,7 @@ class ImpMyList():
 
 #Main function starts from here.
 st.title("SPEL Web APP USING STREAMLIT")
-my_list_of_image_processing = ('Select The Function','Adaptive Thresholding','RGB to Gray','Image Rotation','stitching')
+my_list_of_image_processing = ('Select The Function','Adaptive Thresholding','RGB to Gray','FACE DETECTION','Image Rotation','stitching')
 
 my_list = st.sidebar.selectbox('Select The Function',my_list_of_image_processing)
 
@@ -90,8 +141,10 @@ if my_list == my_list_of_image_processing[1]:
 elif my_list == my_list_of_image_processing[2]:
     ImpMyList.rgb_gray()
 elif my_list == my_list_of_image_processing[3]:
-    ImpMyList.rotation()
+    ImpMyList.face_detection()
 elif my_list == my_list_of_image_processing[4]:
+    ImpMyList.rotation()
+elif my_list == my_list_of_image_processing[5]:
     ImpMyList.stitching()
 else:
     pass
