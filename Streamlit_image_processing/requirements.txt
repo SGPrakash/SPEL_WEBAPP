@@ -1,4 +1,5 @@
 numpy
 streamlit
 opencv-python-headless
+streamlit-authenticator
 streamlit-drawable-canvas
